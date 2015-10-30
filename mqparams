@@ -1,0 +1,74 @@
+#!/bin/env python
+import argparse
+import csv
+import json
+
+
+def parse_args():
+    desc = """Convert a MaxQuant exp_design file to yaml.
+
+    The first line should contain a header with the columns
+    'name', 'fraction' and 'experiment'. The name should be
+    the name (not the path) of the input file without the
+    extension."""
+
+    parser = argparse.ArgumentParser(
+        description='Convert a MaxQuant exp_design file to yaml'
+    )
+
+    subparsers = parser.add_subparsers(help='sub-command help')
+
+    p_from_design = subparsers.add_parser(
+        'from-design', help="Create a new parameter file from a MaxQuant " +
+        "experimental design tsv table"
+    )
+    p_from_design.set_defaults(func=from_design)
+
+    p_from_design.add_argument('input', help='exp design file')
+    args = parser.parse_args()
+    if hasattr(args, 'func'):
+        args.func(args)
+    else:
+        parser.print_help()
+
+
+def read_exp_design(file):
+    reader = iter(csv.reader(file, delimiter='\t'))
+    # skip header
+    params = {}
+    params['fastaFiles'] = {'fileNames': [], 'firstSearch': []}
+    params['globalParams'] = {'defaults': 'default'}
+    params['rawFiles'] = []
+
+    lines = []
+    header = next(reader)
+    for col, expect in zip(header, ['name', 'fraction', 'experiment']):
+        if col.lower() != expect:
+            raise ValueError('Invalid header %s, should be %s' % (col, expect))
+
+    for name, fraction, experiment in reader:
+        lines.append(
+            {
+                'name': name,
+                'fraction': fraction,
+                'experiment': experiment,
+            }
+        )
+
+    params['rawFiles'].append(
+        {
+            'files': lines,
+            'params': {'defaults': 'default'}
+        }
+    )
+    return params
+
+
+def from_design(args):
+    with open(args.input) as f:
+        lines = read_exp_design(f)
+    print(json.dumps(lines, f, indent=4))
+
+
+if __name__ == '__main__':
+    args = parse_args()
